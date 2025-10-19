@@ -1,0 +1,10 @@
+{
+    "app": {
+        "name": "YTS Browser",
+        "version": "1.0.0",
+        "github_repo": "yourusername/your-repo-name"
+    },
+    "api": {
+        "yts_base_url": "https://yts.mx/api/v2"
+    }
+}
