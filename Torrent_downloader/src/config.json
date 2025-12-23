@@ -1,0 +1,10 @@
+{
+    "app": {
+        "name": "YTS Browser",
+        "version": "1.0.0",
+        "github_repo": "fonker001/Tkinter_Torrent_downloader"
+    },
+    "api": {
+        "yts_base_url": "https://yts.lt/api/v2"
+    }
+}

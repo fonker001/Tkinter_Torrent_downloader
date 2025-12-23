@@ -198,7 +198,7 @@ class YTSBrowser:
     def search_movies(self, query):
         """Search movies from YTS API"""
         try:
-            url = f"https://yts.mx/api/v2/list_movies.json?query_term={query.replace(' ', '+')}"
+            url = f"https://yts.lt/api/v2/list_movies.json?query_term={query.replace(' ', '+')}"
             response = requests.get(url, timeout=15)
             response.raise_for_status()
             data = response.json()
