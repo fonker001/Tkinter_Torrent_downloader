@@ -129,13 +129,13 @@ class YTSBrowser:
         TtkLabel(sort_frame, text="Sort:").pack(side="left")
         
         self.sort_var = StringVar(value="Rating (High to Low)")
-        sort_combo = ttk.Combobox(sort_frame, 
-                                 textvariable=self.sort_var, 
-                                 values=["Rating (High to Low)", "Year (Newest)", "Title (A-Z)"],
-                                 state="readonly", 
-                                 width=16)
-        sort_combo.pack(side="left", padx=(5, 0))
-        sort_combo.bind('<<ComboboxSelected>>', self.apply_sorting)
+        self.sort_combo = ttk.Combobox(sort_frame,
+                                      textvariable=self.sort_var,
+                                      values=["Rating (High to Low)", "Year (Newest)", "Title (A-Z)"],
+                                      state="readonly",
+                                      width=16)
+        self.sort_combo.pack(side="left", padx=(5, 0))
+        self.sort_combo.bind('<<ComboboxSelected>>', self.apply_sorting)
         
         # RIGHT SIDE: Buttons
         right_menu = ttk.Frame(menu_frame)
@@ -181,6 +181,8 @@ class YTSBrowser:
         # Movie details (right) - EXPANDS
         self.movie_details = MovieDetails(self.content_frame, colors=self.colors)
         self.movie_details.grid(row=0, column=1, sticky="nsew")
+        self.movie_details.add_bookmark_button(self.toggle_bookmark)
+        self.movie_details.add_download_button(self.download_torrent)
         
         # Bottom controls - FIXED HEIGHT
         bottom_frame = tk.Frame(self.main_container, 
@@ -297,7 +299,7 @@ class YTSBrowser:
         except:
             pass
 
-    def toggle_bookmark(self):
+    def _legacy_toggle_bookmark(self):
         """Toggle bookmark for current movie"""
         if hasattr(self, 'current_movie_id') and self.current_movie_id:
             movie_id = self.current_movie_id
@@ -480,76 +482,6 @@ class YTSBrowser:
         self.search_frame.enable_search()
         self.spinner.stop()
     
-    def search_movies(self, query):
-        """Original keyword search (unchanged except for cache update)"""
-        try:
-            print(f"DEBUG: Searching for: {query}")
-            movies = self.yts_api.search_movies(query)
-            print(f"DEBUG: Found {len(movies)} movies")
-            
-            # Update semantic search index with new results
-            if movies:
-                self.semantic_searcher.update_with_movies(movies)
-            
-            # Update the UI in the main thread
-            self.root.after(0, lambda: self.process_search_results(movies))
-                
-        except Exception as e:
-            print(f"DEBUG: Search error: {e}")
-            self.root.after(0, lambda: self.show_status(f"Search error: {str(e)}", "error"))
-            self.root.after(0, self.search_frame.enable_search)
-            self.root.after(0, self.spinner.stop)
-    
-    def process_search_results(self, movies):
-        """Updated to mark as keyword results"""
-        print(f"DEBUG: Processing {len(movies)} movies in main thread")
-        
-        self.current_movies = movies
-        
-        if not movies:
-            self.movie_list.clear()
-            self.show_status("No results found", "warning")
-        else:
-            # Store movies in cache
-            for movie in movies:
-                movie['search_match_type'] = 'keyword'
-                self.movie_cache[movie["id"]] = movie
-            
-            # Apply sorting
-            self.apply_sorting()
-            
-            self.show_status(f"Found {len(movies)} movies", "success")
-        
-        self.search_frame.enable_search()
-        self.spinner.stop()
-    
-    def apply_sorting(self):
-        """Enhanced sorting to handle semantic search results"""
-        if not self.current_movies:
-            return
-        
-        sort_type = self.sort_var.get()
-        
-        # Check if we have semantic search results
-        has_similarity = any('similarity_score' in movie for movie in self.current_movies)
-        
-        if has_similarity and "Similarity" not in sort_type:
-            # Add similarity sort option if we have semantic results
-            current_values = self.sort_combo['values']
-            if "Similarity (Best Match)" not in current_values:
-                self.sort_combo['values'] = tuple(list(current_values) + ["Similarity (Best Match)"])
-        
-        if sort_type == "Similarity (Best Match)":
-            self.current_movies.sort(key=lambda x: x.get('similarity_score', 0), reverse=True)
-        elif sort_type == "Rating (High to Low)":
-            self.current_movies.sort(key=lambda x: x.get('rating', 0), reverse=True)
-        elif sort_type == "Year (Newest)":
-            self.current_movies.sort(key=lambda x: x.get('year', 0), reverse=True)
-        elif sort_type == "Title (A-Z)":
-            self.current_movies.sort(key=lambda x: x.get('title', '').lower())
-        
-        self.refresh_movie_list()
-    
     # Add to your existing methods:
     def clear_semantic_cache(self):
         """Clear semantic search cache (call from a menu option)"""
@@ -662,15 +594,10 @@ class YTSBrowser:
             self.root.after(0, update_ui)
 
         except Exception as e:
-            self.show_status("Image load failed", "error")
-            self.spinner.stop()
             print("Poster Load Error:", e)
-
-            
-        except Exception as e:
             self.root.after(0, lambda: [
                 self.movie_details.poster_label.config(image="", text="No Image Available"),
-                self.show_status(f"Image load failed", "warning"),
+                self.show_status("Image load failed", "warning"),
                 self.download_btn.config(state="normal"),
                 self.spinner.stop()
             ])
@@ -699,8 +626,16 @@ class YTSBrowser:
         
         print(f"DEBUG: Sorting {len(self.current_movies)} movies")
         sort_type = self.sort_var.get()
+        has_similarity = any('similarity_score' in movie for movie in self.current_movies)
+
+        if has_similarity and hasattr(self, 'sort_combo'):
+            current_values = tuple(self.sort_combo['values'])
+            if "Similarity (Best Match)" not in current_values:
+                self.sort_combo['values'] = current_values + ("Similarity (Best Match)",)
         
-        if sort_type == "Rating (High to Low)":
+        if sort_type == "Similarity (Best Match)":
+            self.current_movies.sort(key=lambda x: x.get('similarity_score', 0), reverse=True)
+        elif sort_type == "Rating (High to Low)":
             self.current_movies.sort(key=lambda x: x.get('rating', 0), reverse=True)
         elif sort_type == "Year (Newest)":
             self.current_movies.sort(key=lambda x: x.get('year', 0), reverse=True)
@@ -733,6 +668,9 @@ class YTSBrowser:
             print(f"DEBUG: Searching for: {query}")
             movies = self.yts_api.search_movies(query)
             print(f"DEBUG: Found {len(movies)} movies")
+
+            if movies:
+                self.semantic_searcher.update_with_movies(movies)
             
             # Update the UI in the main thread
             self.root.after(0, lambda: self.process_search_results(movies))
@@ -754,6 +692,7 @@ class YTSBrowser:
         else:
             # Store movies in cache (no UI updates here)
             for movie in movies:
+                movie['search_match_type'] = 'keyword'
                 self.movie_cache[movie["id"]] = movie
 
             # Sorting will call refresh_movie_list() once

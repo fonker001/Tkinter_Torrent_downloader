@@ -341,11 +341,12 @@ class MovieList(tk.Frame):  # Use tk.Frame
                 y_offset = (target_height - new_height) // 2
                 final_img.paste(img, (x_offset, y_offset))
                 
-                tk_img = ImageTk.PhotoImage(final_img)
-                self.image_cache[movie_id] = tk_img
-                
-                # Update on main thread - FIXED: Store reference properly
                 def update_ui():
+                    if not label_widget.winfo_exists():
+                        return
+
+                    tk_img = ImageTk.PhotoImage(final_img)
+                    self.image_cache[movie_id] = tk_img
                     label_widget.config(
                         image=tk_img, 
                         text=""
@@ -649,16 +650,14 @@ class MovieDetails(tk.Frame):  # Use tk.Frame
         """Connect bookmark button to callback"""
         self.bookmark_callback = callback
         self.bookmark_btn.config(
-            command=callback,
-            state="normal"
+            command=callback
         )
     
     def add_download_button(self, callback):
         """Connect download button to callback"""
         self.download_callback = callback
         self.download_btn.config(
-            command=callback,
-            state="normal"
+            command=callback
         )
     
     def display_movie(self, movie):
@@ -742,19 +741,21 @@ class MovieDetails(tk.Frame):  # Use tk.Frame
                 y_offset = (max_height - new_height) // 2
                 canvas_img.paste(img, (x_offset, y_offset))
                 
-                tk_img = ImageTk.PhotoImage(canvas_img)
-                self.poster_image_ref = tk_img
-                
-                # Update UI - CORRECT VERSION
-                self.root.after(0, lambda img=tk_img: [
+                def update_ui():
+                    if not self.poster_label.winfo_exists():
+                        return
+
+                    tk_img = ImageTk.PhotoImage(canvas_img)
+                    self.poster_image_ref = tk_img
                     self.poster_label.config(
-                        image=img, 
+                        image=tk_img,
                         text="",
                         width=max_width,
                         height=max_height
-                    ),
-                    setattr(self.poster_label, 'image', img)  # Use setattr inside lambda
-                ])
+                    )
+                    self.poster_label.image = tk_img
+
+                self.root.after(0, update_ui)
                 
             except Exception as e:
                 print("Poster load error:", e)
